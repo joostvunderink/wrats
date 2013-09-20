@@ -9,12 +9,50 @@ use warnings;
 
 my $q = new CGI;
 
+my @section_order = qw(
+    execute_file
+    view_file
+    edit_file
+    view_dir
+);
+
+my %sections = (
+    execute_file => {
+        key => 'execute_file',
+        title => 'Execute file',
+        description => 'Here you can execute files. The output will only appear after the execution has been completed on the server, so please be patient.',
+        function => \&execute_file,
+    },
+    view_file => {
+        key => 'view_file',
+        title => 'View file',
+        description => 'This allows you to view the contents of files.',
+        function => \&view_file,
+    },
+    edit_file => {
+        key => 'edit_file',
+        title => 'Edit file',
+        description => 'Here you can edit files.',
+        function => \&edit_file,
+    },
+    view_dir => {
+        key => 'view_dir',
+        title => 'View dir',
+        description => 'Here you can view all files in a given dir.',
+        function => \&view_dir,
+    }
+);
+
 sub run {
     my $config = eval {
         get_config();
     };
     my $c_error = $@;
 
+    # Unfortunately, CGI's start_html() seems to be the only place to add
+    # stylesheet locations. That's why we need to do this clumsy way of
+    # figuring out the CSS locations, even if the config file contains
+    # an error.
     my $css_files;
     if (!$c_error) {
         $css_files = $config->{css};
@@ -49,6 +87,7 @@ sub print_header {
         -title => 'Web access',
         @css_args,
     );
+
     print $q->start_div({-id => 'main', -class => 'main' });
 
     print $q->start_div({-id => 'header', -class => 'header' });
@@ -61,25 +100,23 @@ sub print_body {
 
     my $action = $q->param('action') || '';
 
-    my %file_actions = (
-        execute_file => \&execute_file,
-        edit_file    => \&edit_file,
-        view_file    => \&view_file,
-        view_dir     => \&view_dir,
-    );
-
-    if (exists $file_actions{$action}) {
-        my $filename = $q->param('data') || '';
-        if (!is_action_allowed($filename, $action, $config)) {
-            print $q->p({-class => 'error'}, "File '$filename' is not allowed.");
-            return;
-        }
+    if (exists $sections{$action}) {
         print $q->start_div({-id => $action, -class => 'section' });
-        $file_actions{$action}->($q, $config);
+        print $q->h2($sections{$action}{title});
+
+        my $filename = $q->param('data') || '';
+
+        if (is_action_allowed($filename, $action, $config)) {
+            $sections{$action}{function}->($q, $config);
+        }
+        else {
+            print_error("File '$filename' is not allowed.");
+        }
+
         print $q->end_div();
     }
     else {
-        show_page($q, $config);
+        print_main_page($q, $config);
     }
 }
 
@@ -88,26 +125,21 @@ sub print_footer {
     print $q->end_html;
 }
 
-sub show_page {
+sub print_main_page {
     my ($q, $config) = @_;
 
-    my @sections = (
-        ['execute_file', 'Execute file'],
-        ['view_file', 'View file'],
-        ['edit_file', 'Edit file'],
-        ['view_dir', 'View dir'],
-    );
-
-    for my $section (@sections) {
+    for my $section (@section_order) {
         print_section(
             config => $config,
-            key    => $section->[0],
-            title  => $section->[1],
+            key    => $sections{$section}{key},
+            title  => $sections{$section}{title},
+            description  => $sections{$section}{description},
         );
     }
 }
 
 sub print_section {
+    # Prints one section of the main page.
     my %args = @_;
     my $config = $args{config};
     my $title  = $args{title};
@@ -115,6 +147,7 @@ sub print_section {
 
     print $q->start_div({-id => $key, -class => 'section' });
     print $q->h2($title);
+    print $q->p($args{description});
 
     if ($config->{$key}->{enabled}) {
         my @files;
@@ -143,16 +176,12 @@ sub execute_file {
     my $filename = $q->param('data');
     my $action = 'execute_file';
 
-    print $q->h2("Execute file");
-
     if (!-f $filename) {
-        print $q->p("File '$filename' does not exist.");
-        return;
+        return print_error("File '$filename' does not exist.");
     }
 
     if (!-x $filename) {
-        print $q->p("File '$filename' is not executable.");
-        return;
+        return print_error("File '$filename' is not executable.");
     }
 
     my $output = `$filename 2>&1`;
@@ -176,16 +205,12 @@ sub edit_file {
     my $contents = $q->param('contents');
     my $action = 'edit_file';
 
-    print $q->h2("Edit file");
-
     if (!-f $filename) {
-        print $q->p("File '$filename' does not exist.");
-        return;
+        return print_error("File '$filename' does not exist.");
     }
 
     if (!-w $filename) {
-        print $q->p("File '$filename' is not writable.");
-        return;
+        return print_error("File '$filename' is not writable.");
     }
 
     if ($contents) {
@@ -225,43 +250,37 @@ sub view_file {
     my $filename = $q->param('data');
     my $action = 'view_file';
 
-    print $q->h2("View file");
-
     if (!-f $filename) {
-        print $q->p("File '$filename' does not exist.");
-        return;
+        return print_error("File '$filename' does not exist.");
     }
 
     if (!-r $filename) {
-        print $q->p("File '$filename' is not readable.");
-        return;
+        return print_error("File '$filename' is not readable.");
     }
 
     print_file_contents($filename);
 }
 
 sub view_dir {
+    # Show either the contents of a filename in a dir (if both 'filename'
+    # and 'dir' were given by the user), or a list of the files in the
+    # dir.
     my ($q, $config) = @_;
 
     my $dir = $q->param('data');
     my $filename = $q->param('filename');
     my $action = 'view_dir';
 
-    print $q->h2("View dir");
-
     if (!-d $dir) {
-        print $q->p("Dir '$dir' does not exist.");
-        return;
+        return print_error("Dir '$dir' does not exist.");
     }
 
     if (!-r $dir) {
-        print $q->p("Dir '$dir' is not readable.");
-        return;
+        return print_error("Dir '$dir' is not readable.");
     }
 
     if (!-x $dir) {
-        print $q->p("Dir '$dir' is not executable.");
-        return;
+        return print_error("Dir '$dir' is not executable.");
     }
 
     my @files_in_dir;
@@ -272,6 +291,9 @@ sub view_dir {
     }
     @files_in_dir = sort @files_in_dir;
 
+    # We check whether the given filename is equal to one of the files
+    # in the dir, and not whether "$dir/$filename" exists. The latter
+    # could lead to security issues, e.g. if $filename contains "../".
     if ($filename) {
         if (grep { $filename eq $_ } @files_in_dir) {
             my $full_path_filename = sprintf "%s/%s",
@@ -279,11 +301,11 @@ sub view_dir {
             print_file_contents($full_path_filename);
         }
         else {
-            print $q->p("Filename '$filename' is not allowed.");
+            return print_error("Filename '$filename' is not allowed.");
         }
     }
     else {
-        # show list of files with links
+        # Show the list of files with links.
         print $q->p("Files in '$dir':");
         my @links;
         for my $fn (@files_in_dir) {
@@ -336,6 +358,17 @@ sub print_output {
 
     print $q->start_div({-id => 'output', -class => 'output' });
     printf "<pre>%s</pre>", make_html_safe($output);
+    print $q->end_div();
+}
+
+sub print_error {
+    my ($error) = @_;
+
+    print $q->p({-class => 'error'}, $error);
+    return;
+
+    print $q->start_div({-id => 'error', -class => 'error' });
+    print $q->("Error: " . make_html_safe($error));
     print $q->end_div();
 }
 
