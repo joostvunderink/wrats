@@ -22,8 +22,15 @@ sub run {
 
     print_header($css_files);
 
+    if (!$c_error) {
+        eval {
+            assert_is_secure($config);
+        };
+        $c_error = $@;
+    }
+
     if ($c_error) {
-        print $q->p({-class => 'error'}, "Error in config file: $@");
+        print $q->p({-class => 'error'}, "Error in config file: $c_error");
     }
     else {
         print_body($config);
@@ -335,7 +342,7 @@ sub get_config {
     if (!-e $filename) {
         die "Config file '$filename' not found.\n";
     }
-    
+
     my $json_text = do {
         open(my $json_fh, "<:encoding(UTF-8)", $filename);
         local $/;
@@ -345,6 +352,21 @@ sub get_config {
     my $json = JSON->new;
     my $data = $json->decode($json_text);
     return $data;
+}
+
+sub assert_is_secure {
+    my ($config) = @_;
+
+    if ($config->{edit_file}{enabled} && $config->{execute_file}{enabled}) {
+        my %edit_files = map { $_->{filename} => 1 } @{ $config->{edit_file}{data} };
+        my %exec_files = map { $_->{filename} => 1 } @{ $config->{execute_file}{data} };
+
+        for my $filename (keys %edit_files) {
+            if (exists $exec_files{$filename}) {
+                die "Insecure config: '$filename' can be both executed and edited!\n";
+            }
+        }
+    }
 }
 
 run();
