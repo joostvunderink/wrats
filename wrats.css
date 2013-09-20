@@ -1,0 +1,42 @@
+body {
+    font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    color: #333;
+    background-color: #e0e5f7;
+}
+
+div.main {
+    width: 940px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+p.error {
+    color: red;
+    font-weight: bold;
+}
+
+div.section {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid grey;
+    background-color: #c0c8f7;
+}
+
+div.output {
+    margin: 5px;
+    padding: 10px;
+    border: 1px solid grey;
+    background-color: #e3e3e3;
+    overflow-x: scroll;
+}
+
+div.output2 {
+    margin: 5px;
+    padding: 10px;
+    border: 1px solid grey;
+    background-color: #c0f7c8;
+    overflow-x: scroll;
+}
+
