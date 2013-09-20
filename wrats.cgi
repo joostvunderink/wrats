@@ -74,7 +74,9 @@ sub print_body {
             print $q->p({-class => 'error'}, "File '$filename' is not allowed.");
             return;
         }
+        print $q->start_div({-id => $action, -class => 'section' });
         $file_actions{$action}->($q, $config);
+        print $q->end_div();
     }
     else {
         show_page($q, $config);
@@ -159,7 +161,7 @@ sub execute_file {
         print $q->p("An error occurred! See below for the error.");
     }
     print $q->p("Output:");
-    printf "<pre>%s</pre>", $output;
+    print_output($output);
     print $q->p($q->a({
             -href => sprintf("?action=%s&filename=%s",
                 $action, $filename),
@@ -192,7 +194,7 @@ sub edit_file {
         close $fh;
 
         print $q->p("New contents of $filename:");
-        printf "<pre>%s</pre>", $contents;
+        print_output($contents);
     }
     else {
         print $q->p("Edit file '$filename'");
@@ -289,7 +291,6 @@ sub view_dir {
                 $q->a({
                         -href => sprintf("?action=%s&data=%s&filename=%s",
                             $action, $dir, $fn),
-                        #-target => "_blank",
                     },
                     $fn)
             );
@@ -324,14 +325,28 @@ sub print_file_contents {
 
     print $q->p("File '$filename' contents:");
 
-    my $safe_contents = $contents;
-    $safe_contents =~ s/</&lt;/;
-    $safe_contents =~ s/>/&gt;/;
-    $safe_contents =~ s/&/&amp;/;
-    # TODO: Escaping could probably be done better!
+    my $safe_contents = make_html_safe($contents);
 
-    print $q->div({-class => "view_file" },
+    print $q->div({-class => "output" },
         sprintf("<pre>%s</pre>", $safe_contents));
+}
+
+sub print_output {
+    my ($output) = @_;
+
+    print $q->start_div({-id => 'output', -class => 'output' });
+    printf "<pre>%s</pre>", make_html_safe($output);
+    print $q->end_div();
+}
+
+sub make_html_safe {
+    my ($string) = @_;
+
+    $string =~ s/&/&amp;/g;
+    $string =~ s/</&lt;/g;
+    $string =~ s/>/&gt;/g;
+
+    return $string;
 }
 
 sub get_config {
