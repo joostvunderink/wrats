@@ -1,0 +1,44 @@
+{
+    "css": [ "/css/wrats.css" ],
+    "execute_file": {
+        "enabled": 1,
+        "data": [
+            {
+                "filename":"/bin/hostname",
+                "description":"Show the hostname of this machine"
+            },
+            {
+                "filename":"/tmp/test.sh",
+                "description":"Test file 1"
+            }
+        ]
+    },
+    "edit_file": {
+        "enabled": 1,
+        "data": [
+            {
+                "filename":"/tmp/testdata",
+                "description":"Data for 'Test file 1'"
+            }
+        ]
+    },
+    "view_file": {
+        "enabled": 1,
+        "data": [
+            {
+                "filename":"/tmp/testdata",
+                "description":"Data for 'Test file 1'"
+            }
+        ]
+    },
+    "view_dir": {
+        "enabled": 1,
+        "data": [
+            {
+                "filename":"/tmp/wrats",
+                "description":"wrats test dir"
+            }
+        ]
+    }
+}
+
